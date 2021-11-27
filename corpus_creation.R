@@ -8,8 +8,9 @@ library(quanteda)
 library(data.table)
 library(Rcpp)
 
+setwd("C:/Users/Eleftheria/OneDrive/Desktop/fs3/Consulting")
 #Read candidate data into RStudio
-candidate_data <- read.csv("candidate_data.csv", sep = ";", encoding = "UTF-8")
+candidate_data <- read.csv("candidate_data_raw.csv", sep = ";", encoding = "UTF-8")
 #Remove candidates without a Twitter account URL from candidate dataset
 candidate_data <- drop_na(candidate_data, twlink)
 
@@ -62,9 +63,7 @@ candidate_data <- drop_na(candidate_data, author_id)
 #Merge candidate dataset and candidates’ tweets dataset, creating the working dataset
 working_dataset <- left_join(candidates_tweets_data, candidate_data, by = "author_id")
 
-# reduced dataset for most important info, additional information 
-# can be rejoined by the main keys id and author_id
-working_dataset_reduced <- working_dataset %>% select(id, text, author_id, party)
+
 #working_dataset <- join(candidates_tweets_data, candidate_data,
                         #by = "author_id",
                         #type = "left",
@@ -155,6 +154,120 @@ patterns_to_remove <- stringr::str_c(
 
 working_dataset[, text := stringr::str_remove_all(text, patterns_to_remove)]
 working_dataset[, text := stringr::str_squish(text)]
+
+###############################################################
+#         custom stop word/ stemming
+#                    approach 
+############################################################### 
+# reduced dataset for most important info, additional information 
+# can be rejoined by the main keys id and author_id
+working_dataset_red <- working_dataset %>%
+  as.data.frame() %>%
+  select(id, text, author_id, party)
+remove(working_dataset)
+
+working_dataset_red <- working_dataset_red %>%
+  as_tibble() %>%
+  mutate(text = tolower(text)) %>%
+  # replace _-& with space
+  mutate(text = str_replace_all(text, "\\-|\\_|\\&", " ")) %>%
+  # only letters allowed
+  mutate(text = map_chr(str_extract_all(text, "[:alpha:]+"),
+                        ~ str_c(.x, collapse = " "))) %>%
+  # remove starting "rt"
+  mutate(text = str_remove(text, "^rt")) %>%
+  # remove unnecessary white space
+  mutate(text = str_trim(str_squish(text))) %>%
+  # remove empty and single word tweets
+  mutate(word_count = str_count(text, pattern = " ") + 1) %>%
+  filter(word_count > 1)
+
+### detect foreign language posts
+library(fastText)
+language_ident <- language_identification(
+  input_obj = working_dataset_red$text,
+  pre_trained_language_model_path = "pretrained_languageident.ftz"
+)
+working_dataset_red <- working_dataset_red %>%
+  bind_cols("lang" = language_ident$iso_lang_1) %>%
+  filter(lang == "de") %>%
+  select(-lang)
+
+### remove stopwords
+library(tidytext)
+german_stopwords <- get_stopwords("de")
+# again change umlaute and use kein and nicht
+german_stopwords <- german_stopwords %>%
+  mutate(word = str_replace_all(
+    word,
+    c("\u00e4" = "ae",
+      "\u00f6" = "oe",
+      "\u00fc" = "ue",
+      "\u00df" = "ss"))) %>%
+  filter(!str_detect(word, "kein(.)*|nicht"))
+
+# possibly detect even more stopwords
+working_dataset_red %>%
+  unnest_tokens(word, text) %>%
+  anti_join(german_stopwords, by = "word") %>%
+  group_by(word) %>%
+  dplyr::summarize(count = n()) %>%
+  arrange(desc(count)) %>%
+  View()
+
+# actually remove the stopwords and apply stemming
+working_dataset_red <- working_dataset_red %>%
+  unnest_tokens(word, text) %>%
+  anti_join(german_stopwords, by = "word") %>%
+  # remove detected romaval words from first 100 biggest counts
+  filter(!word %in% c("btw",
+                      "schon",
+                      "mal",
+                      "via",
+                      "beim",
+                      "wer",
+                      "unsere",
+                      "ab",
+                      "ht",
+                      "ltwnrw",
+                      "wurde",
+                      "bundestagswahlen")) %>%
+  # remove single letters
+  filter(str_length(word) >= 2) %>%
+  # add word stemming
+  mutate(
+    word_stemmed = SnowballC::wordStem(
+      word,
+      language = "de"
+    )
+  )
+
+working_dataset_red <- working_dataset_red %>%
+  # back to tweet level
+  group_by(id) %>%
+  dplyr::summarise(text = str_c(word, collapse = " "),
+                   text_stemmed = str_c(word_stemmed,
+                                        collapse = " "),
+                   author_id = dplyr::first(author_id),
+                   party = dplyr::first(party),
+                   word_count = dplyr::first(word_count))
+
+# save the results
+### write to csv
+unname(object.size(working_dataset_red) / 1000000) # MB
+write_csv(working_dataset_red, "btw17_corpus.csv")  
+ ### read in
+btw17_corpus <- readr::read_csv(
+  "btw17_corpus.csv",
+  col_types = c("id" = "character",
+                "author_id" = "character",
+                "text" = "character",
+                "text_stemmed" = "character",
+                "party" = "integer",
+                "word_count" = "integer"))
+
+
+###############################################################
 
 #Create corpus object containing tweets identified by unique ID
 working_dataset[, doc_id := paste(
