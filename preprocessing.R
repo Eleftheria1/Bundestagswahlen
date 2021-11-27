@@ -132,3 +132,57 @@ btw_party_level_tfidf %>%
 btw_party_level_tfidf %>%
   arrange(desc(tf_idf)) %>%
   View()
+
+# tfidf weighting grouped by author_id so tfidf weights are constant
+# for a certain politician. Maybe better then grouping by party because of
+# less restrictions and because of the maybe upcoming graph for each party
+btw_author_level_tfidf <- btw_word_level %>%
+  left_join(btw17_corpus %>%
+              select(id, author_id, party),
+            by = "id") %>%
+  group_by(author_id, word, party) %>%
+  summarise(n = sum(n), .groups = "drop") %>%
+  bind_tf_idf(word, author_id, n)
+
+
+# most important word wrt tfidf
+btw_author_level_tfidf %>%
+  arrange(desc(tf_idf)) %>%
+  head(20)
+# most unimportant words wrt tfidf
+btw_author_level_tfidf %>%
+  arrange(tf_idf) %>%
+  head(20)
+
+
+# scrollable view
+btw_author_level_tfidf %>%
+  arrange(desc(tf_idf)) %>%
+  View()
+## ---> no tfidf scores of 0 anymore! good! much better than before
+
+library(widyr)
+# Calculate the cosine similarity by chapter, using words
+comparisons <- btw_author_level_tfidf %>%
+  pairwise_similarity(author_id, word, tf_idf) %>%
+  arrange(desc(similarity))
+# Print the mean of the similarity values
+comparisons %>%
+  summarize(mean = mean(similarity))
+
+library(wordcloud)
+library(wordcloud2)
+library(RColorBrewer)
+library(tm)
+
+wordcloud(words = btw_author_level_tfidf$word,
+          freq = btw_author_level_tfidf$tf_idf *10,
+          max.words=30, random.order=FALSE, rot.per=0.35, 
+          scale=c(1,1),
+          colors=brewer.pal(8, "Dark2"))
+
+wordcloud2(data= as.data.frame(btw_author_level_tfidf %>%
+                                filter(party == 7) %>%
+                                select(word, tf_idf) %>%
+                                 filter(tf_idf *10 > 1.5)),
+           size=0.5, color='random-dark', shape = "circle")
