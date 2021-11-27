@@ -249,8 +249,12 @@ working_dataset_red <- working_dataset_red %>%
                    text_stemmed = str_c(word_stemmed,
                                         collapse = " "),
                    author_id = dplyr::first(author_id),
-                   party = dplyr::first(party),
-                   word_count = dplyr::first(word_count))
+                   party = dplyr::first(party))
+
+# create updated word_count and remove single word tweets
+working_dataset_red <- working_dataset_red %>%
+  mutate(word_count = stringr::str_count(text, " ") + 1) %>%
+  filter(word_count > 1) 
 
 # save the results
 ### write to csv
@@ -268,99 +272,3 @@ btw17_corpus <- readr::read_csv(
 
 
 ###############################################################
-
-#Create corpus object containing tweets identified by unique ID
-working_dataset[, doc_id := paste(
-  id,
-  name,
-  firstname,
-  author_id,
-  sep = ""),
-  by = seq_len(nrow(working_dataset))]
-
-corpus <- quanteda::corpus(
-  working_dataset,
-  docid_field = "doc_id",
-  text_field = "text")
-
-#Convert tweets into tokens
-tokens_corpus <- quanteda::tokens(
-  corpus,
-  what = "word",
-  remove_symbols = TRUE,
-  remove_numbers = TRUE,
-  remove_separators = TRUE,
-  remove_punct = TRUE,
-  split_hyphens = TRUE,
-  include_docvars = TRUE)
-
-#Lowercase and stem tokens and remove stopwords
-tokens_corpus <- quanteda::tokens_tolower(tokens_corpus)
-tokens_corpus <- quanteda::tokens_wordstem(
-  tokens_corpus,
-  language = "german")
-
-clean_and_stem <- function(text) {
-  text <-  stringi::stri_trans_general(text, "Any-Latin")
-  text <- stringr::str_replace_all(
-    text,
-    c("\u00c4" = "Ae",
-      "\u00e4" = "ae",
-      "\u00d6" = "Oe",
-      "\u00f6" = "oe",
-      "\u00dc" = "Ue",
-      "\u00fc" = "ue",
-      "\u00df" = "ss"))
-  text <- SnowballC::wordStem(text)
-  text
-}
-
-stopwords <- clean_and_stem(quanteda::stopwords(language = "de"))
-stopwords <- unique(stopwords)
-stopwords <- stopwords[nchar(stopwords) > 0]
-stopwords <- stringr::str_remove_all(
-  stopwords,
-  "kein(.)*|nicht")
-tokens_corpus <- quanteda::tokens_remove(tokens_corpus, stopwords)
-
-tokens_corpus <- quanteda::tokens_select(tokens_corpus, min_nchar = 3)
-tokens_corpus <- quanteda::tokens_remove(
-  tokens_corpus,
-  c("der", "die", "das", "was", "wer", "wie", "ich", "sie", "wir", "ihr", "rt"))
-
-tweet_corpus_tbl <- tibble(raw_name = names(tokens_corpus)) %>%
-  mutate(id = str_extract(raw_name, "^\\d+"),
-         author_id = str_extract(raw_name, "\\d+$")) %>%
-  select(-raw_name) %>%
-  left_join(candidate_data %>%
-              select(author_id, party),
-            by = "author_id") %>%
-  rowid_to_column("row_num") %>%
-  mutate(text = map_chr(row_num,
-                        ~ str_c(tokens_corpus[[.x]],
-                                collapse = " "))
-           ) %>%
-  select(-row_num) %>%
-  mutate(word_count = str_count(text, pattern = " ") + 1) %>%
-  filter(word_count > 1)
-
-tweet_corpus_tbl
-
-object.size(tweet_corpus_tbl) / 1000000
-
-### write to csv
-# write_csv(tweet_corpus_tbl, "btw17_corpus")  
-### read in
-btw17_corpus <- readr::read_csv(
-  "btw17_corpus.csv",
-  col_types = c("id" = "character",
-                "author_id" = "character",
-                "text" = "character",
-                "party" = "integer",
-                "word_count" = "integer"))
-
-
-
-
-
-
