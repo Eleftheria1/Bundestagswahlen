@@ -9,7 +9,6 @@ btw17_corpus <- readr::read_csv(
                 "party" = "integer",
                 "word_count" = "integer"))
 
-btw17_corpus
 
 # distribution of tweet number per politician
 btw17_corpus %>%
@@ -53,9 +52,12 @@ btw17_corpus$word_count %>%
 # in each tweet. Possible problem: as tweets are really short tfidf
 # could face problems with no extremely high values
 btw_word_level <- btw17_corpus %>%
+  unnest_tokens(word, text_stemmed) %>%
+  count(id, word, sort = TRUE)
+
+btw_word_level_unstemmed <- btw17_corpus %>%
   unnest_tokens(word, text) %>%
   count(id, word, sort = TRUE)
-btw_word_level
 
 # number of occurances of the same word in the tweets basically
 # always 1 -> problematic for tfidf
@@ -77,29 +79,23 @@ btw_word_level %>%
        title = "Distribution of maximal word occurances") +
   theme_minimal()
 
-# when using tfidf consider a grouping by party!
-
-# there are a lot of english tweets present they are generally on the
-# large side wrt number of words as english stopwords were not
-# removed
-# detect and remove them? or include in word embedding?
-# detect via fasttext package?
-
-# remove tweet with 38 words as it is spam
+# when using tfidf consider a grouping by party or politician!
 
 # general word token dataframe that shows unqiue words with their counts
-overall_word_frequency <- btw_word_level %>%
+# maybe we will use this later when creating the wordclouds (remove 
+# words as "nicht" wich have a very high count but are not so interesting)
+overall_word_frequency_unstemmed <- btw_word_level_unstemmed %>%
   group_by(word) %>%
   summarize(word_frequency = sum(n)) %>%
   ungroup() %>%
   arrange(desc(word_frequency))
 
 # most frequent words
-overall_word_frequency %>%
+overall_word_frequency_unstemmed %>%
   head(20)
 
 # overall word frequency distribution
-ggplot(overall_word_frequency, aes(x = word_frequency)) +
+ggplot(overall_word_frequency_unstemmed, aes(x = word_frequency)) +
   geom_histogram(bins = 30) +
   scale_x_log10() +
   scale_y_log10() +
@@ -110,28 +106,28 @@ ggplot(overall_word_frequency, aes(x = word_frequency)) +
 
 # tfidf weighting grouped by party so tfidf weights are constant
 # for a certain party
-btw_party_level_tfidf <- btw_word_level %>%
-  left_join(btw17_corpus %>%
-              select(id, party),
-            by = "id") %>%
-  group_by(party, word) %>%
-  summarise(n = sum(n), .groups = "drop") %>%
-  bind_tf_idf(word, party, n)
-
-# most important word wrt tfidf
-btw_party_level_tfidf %>%
-  arrange(desc(tf_idf)) %>%
-  head(20)
-# most unimportant words wrt tfidf
-btw_party_level_tfidf %>%
-  arrange(tf_idf) %>%
-  head(20)
-
-
-# scrollable view
-btw_party_level_tfidf %>%
-  arrange(desc(tf_idf)) %>%
-  View()
+# btw_party_level_tfidf <- btw_word_level %>%
+#   left_join(btw17_corpus %>%
+#               select(id, party),
+#             by = "id") %>%
+#   group_by(party, word) %>%
+#   summarise(n = sum(n), .groups = "drop") %>%
+#   bind_tf_idf(word, party, n)
+# 
+# # most important word wrt tfidf
+# btw_party_level_tfidf %>%
+#   arrange(desc(tf_idf)) %>%
+#   head(20)
+# # most unimportant words wrt tfidf
+# btw_party_level_tfidf %>%
+#   arrange(tf_idf) %>%
+#   head(20)
+# 
+# 
+# # scrollable view
+# btw_party_level_tfidf %>%
+#   arrange(desc(tf_idf)) %>%
+#   View()
 
 # tfidf weighting grouped by author_id so tfidf weights are constant
 # for a certain politician. Maybe better then grouping by party because of
@@ -162,7 +158,7 @@ btw_author_level_tfidf %>%
 ## ---> no tfidf scores of 0 anymore! good! much better than before
 
 library(widyr)
-# Calculate the cosine similarity by chapter, using words
+# Calculate the cosine similarity by politician, using words
 comparisons <- btw_author_level_tfidf %>%
   pairwise_similarity(author_id, word, tf_idf) %>%
   arrange(desc(similarity))
@@ -175,14 +171,118 @@ library(wordcloud2)
 library(RColorBrewer)
 library(tm)
 
-wordcloud(words = btw_author_level_tfidf$word,
-          freq = btw_author_level_tfidf$tf_idf *10,
-          max.words=30, random.order=FALSE, rot.per=0.35, 
-          scale=c(1,1),
-          colors=brewer.pal(8, "Dark2"))
+# for the word clouds remove some very common words without much meaning
+# they are kind of "stopwords"
+btw_wordcloud_words <- btw_word_level_unstemmed %>% 
+  left_join(btw17_corpus %>%
+              select(id, author_id, party),
+            by = "id") %>%
+  filter(!word %in% c("nicht", "heute", "keine", "gut", "mehr","geht",
+                      "neu", "jahr", "ja", "immer", "ganz", "waehlt",
+                      "eh", "aeh", "elfi", "txl", "na", "ne", "cum",
+                      "guter"))
 
-wordcloud2(data= as.data.frame(btw_author_level_tfidf %>%
+wordcloud(words = btw_wordcloud_words$word,
+          freq = btw_wordcloud_words$n,
+          max.words=30, random.order=FALSE, rot.per=0.35, 
+          scale=c(0.8,0.8),
+          colors=brewer.pal(8, "Dark2"))
+##########################################
+#wordclouds with wordcloud2
+# Question what n should we choose ??
+# Note: Important! We have different sizes of tweetlengths (or better:
+# words used) for each party. so it is kind of obvious that the prob
+# for seeing the same word oftener is bigger for parties with more tweets.
+# so don't overinterpretate the results regarding heterogenity!
+# party size tweets
+# cdu 236493, spd 328381, linke 227781, grüne 495825, csu 23175, 
+# fdp 166891, afd 331385
+# But nevertheless we can see something as the sizes are not so different
+# except of grüne wich have a lot more and fdp and csu wich have less
+# Note also that it could be that it't alsways the same person who 
+# tweets a specific word super often, so keep it in mind when you do
+# interpretations regarding heterogenity between politicians! 
+set.seed(222)
+# wordcloud for afd (60 words) we have to filter for afd because it't 
+# too often and you can't see anything except this word, we will do
+# this also for the other parties in their wordclouds
+wordcloud2(data= as.data.frame(btw_wordcloud_words %>%
                                 filter(party == 7) %>%
-                                select(word, tf_idf) %>%
-                                 filter(tf_idf *10 > 1.5)),
-           size=0.5, color='random-dark', shape = "circle")
+                                 select(word, n) %>%
+                                 group_by(word)%>%
+                                 summarize(n = sum(n))%>%
+                                 filter(n> 400) %>%
+                                 ungroup()) %>%
+                                 filter(word != "afd"),
+           size=1, color='random-dark', shape = "circle",
+           minRotation = -pi/2, maxRotation = -pi/2)
+# wordcloud for cdu (30 words)
+wordcloud2(data= as.data.frame(btw_wordcloud_words %>%
+                                 filter(party == 1) %>%
+                                 select(word, n) %>%
+                                 group_by(word)%>%
+                                 summarize(n = sum(n))%>%
+                                 filter(n> 400) %>%
+                                 ungroup()%>%
+                                 filter(word != "cdu")),
+           size=0.7, color='random-dark', shape = "circle",
+           minRotation = -pi/2, maxRotation = -pi/2)
+# wordcloud for spd (70 words)
+wordcloud2(data= as.data.frame(btw_wordcloud_words %>%
+                                 filter(party == 2) %>%
+                                 select(word, n) %>%
+                                 group_by(word)%>%
+                                 summarize(n = sum(n))%>%
+                                 filter(n> 400) %>%
+                                 ungroup()%>%
+                                 filter(word != "spd")),
+           size=0.5, color='random-dark', shape = "circle",
+           minRotation = -pi/2, maxRotation = -pi/2)
+# wordcloud for grüne (120 words)
+
+wordcloud2(data= as.data.frame(btw_wordcloud_words %>%
+                                 filter(party == 4) %>%
+                                 select(word, n) %>%
+                                 group_by(word)%>%
+                                 summarize(n = sum(n))%>%
+                                 filter(n> 400) %>%
+                                 ungroup() %>%
+                                 filter(word != "gruene")),
+           size=0.6, color='random-dark', shape = "circle",
+           minRotation = -pi/2, maxRotation = -pi/2)
+# wordcloud for fdp (20 words)
+wordcloud2(data= as.data.frame(btw_wordcloud_words %>%
+                                 filter(party == 6) %>%
+                                 select(word, n) %>%
+                                 group_by(word)%>%
+                                 summarize(n = sum(n))%>%
+                                 filter(n> 400) %>%
+                                 ungroup() %>%
+                                 filter(word != "fdp")),
+           size=0.4, color='random-dark', shape = "circle",
+           minRotation = -pi/2, maxRotation = -pi/2)
+# wordcloud for linke (26 words)
+wordcloud2(data= as.data.frame(btw_wordcloud_words %>%
+                                 filter(party == 3) %>%
+                                 select(word, n) %>%
+                                 group_by(word)%>%
+                                 summarize(n = sum(n))%>%
+                                 filter(n> 400) %>%
+                                 ungroup() %>%
+                                 filter(word != "linke")),
+           size=0.6, color='random-dark', shape = "circle",
+           minRotation = -pi/2, maxRotation = -pi/2)
+# csu is party == 5 maybe join with cdu ??? 
+# not enough counts to plot it with 400 word counts
+# we need at most 50 wordcounts to have a meaningfull plot!
+wordcloud2(data= as.data.frame(btw_wordcloud_words %>%
+                                 filter(party == 5) %>%
+                                 select(word, n) %>%
+                                 group_by(word)%>%
+                                 summarize(n = sum(n))%>%
+                                 filter(n> 50) %>%
+                                 ungroup() %>%
+                                 filter(word != "csu")),
+           size=0.8, color='random-dark', shape = "circle",
+           minRotation = -pi/2, maxRotation = -pi/2)
+# Summary: tbd
