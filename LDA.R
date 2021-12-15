@@ -247,14 +247,14 @@ linke_result <- fit_party_lda(
   party_ind = 3,
   stopwords = c("nicht", "dwaehl", "kein", "mehr", "link", "heut",
                 "geht", "gibt", "darum"),
-  number_of_topics = 3
+  number_of_topics = 2
 )
 gruene_result <- fit_party_lda(
   word_level = btw_word_level,
   party_ind = 4,
   stopwords = c("nicht", "dwaehl", "kein", "mehr", "gruen", "heut",
                 "geht", "gibt", "darum", "inn"),
-  number_of_topics = 3
+  number_of_topics = 2
 )
 fdp_result <- fit_party_lda(
   word_level = btw_word_level,
@@ -325,6 +325,7 @@ fdp_result <- fit_party_lda(
   grouped_gammas_afd %>% 
     summarise(avg=mean(gamma)) %>%
     arrange(desc(avg))
+# 70 in topic 2 50 in topic 1
 ###############################################################
 #cdu
 top_terms_cdu <- cdu_result$beta_values %>%
@@ -351,6 +352,7 @@ grouped_gammas_cdu %>%
 grouped_gammas_cdu %>% 
     summarise(avg=mean(gamma)) %>%
     arrange(desc(avg))
+# 128 in topic 2 49 in topic 1
 #spd
 top_terms_spd <- spd_result$beta_values %>%
   group_by(topic) %>%
@@ -376,6 +378,7 @@ grouped_gammas_spd %>%
 grouped_gammas_spd %>% 
   summarise(avg=mean(gamma)) %>%
   arrange(desc(avg))
+# 210 in topic 2 74 in topic 1
 #linke
 top_terms_linke <- linke_result$beta_values %>%
   group_by(topic) %>%
@@ -401,6 +404,7 @@ grouped_gammas_linke %>%
 grouped_gammas_linke %>% 
   summarise(avg=mean(gamma)) %>%
   arrange(desc(avg))
+# 102 in topic 2 55 in topic 1
 #gruene
 top_terms_gruene <- gruene_result$beta_values %>%
   group_by(topic) %>%
@@ -426,6 +430,7 @@ grouped_gammas_gruene %>%
 grouped_gammas_gruene %>% 
   summarise(avg=mean(gamma)) %>%
   arrange(desc(avg))
+# 222 in topic 2 53 in topic 1
 #fdp
 top_terms_fdp <- fdp_result$beta_values %>%
   group_by(topic) %>%
@@ -451,4 +456,6 @@ grouped_gammas_fdp %>%
 grouped_gammas_fdp %>% 
   summarise(avg=mean(gamma)) %>%
   arrange(desc(avg))
-
+# 87 in topic 1 68 in topic 2 
+# ausgeglichen nur bei fdp und afd
+# andere parteien hauptsächlich nur ein topic
