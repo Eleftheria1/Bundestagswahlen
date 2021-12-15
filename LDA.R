@@ -305,7 +305,17 @@ fdp_result <- fit_party_lda(
   sorted_gammas_afd <- afd_result$gamma_values %>%
     group_by(document) %>%
     arrange(desc(gamma))
-  
+  sorted_gammas_linke %>% 
+    group_by(document) %>%
+    mutate(max_gamma = round(max(gamma), 1)) %>%
+    slice_max(order_by = -gamma) %>%
+    ggplot(aes(x = factor(max_gamma), fill = factor(topic))) +
+    geom_bar(position = "dodge")
+  sorted_gammas_afd %>% 
+    group_by(document) %>%
+    mutate(max_gamma = max(gamma)) %>%
+    ggplot(aes(x = max_gamma)) +
+    geom_density()
   # Create grouped gamma tibble
   grouped_gammas_afd <- afd_result$gamma_values %>%
     group_by(document) %>%
@@ -342,6 +352,16 @@ top_terms_cdu %>%
 sorted_gammas_cdu <- cdu_result$gamma_values %>%
     group_by(document) %>%
     arrange(desc(gamma))
+sorted_gammas_cdu %>% 
+  group_by(document, topic) %>%
+  mutate(max_gamma = max(gamma)) %>%
+  ggplot(aes(x = max_gamma, col = factor(topic))) +
+  geom_density()
+sorted_gammas_cdu %>% 
+  group_by(document) %>%
+  mutate(max_gamma = max(gamma)) %>%
+  ggplot(aes(x = max_gamma)) +
+  geom_density()
 grouped_gammas_cdu <- cdu_result$gamma_values %>%
     group_by(document) %>%
     arrange(desc(gamma)) %>%
@@ -368,6 +388,16 @@ top_terms_spd %>%
 sorted_gammas_spd <- spd_result$gamma_values %>%
   group_by(document) %>%
   arrange(desc(gamma))
+sorted_gammas_spd %>% 
+  group_by(document, topic) %>%
+  mutate(max_gamma = max(gamma)) %>%
+  ggplot(aes(x = max_gamma, col = factor(topic))) +
+  geom_density()
+sorted_gammas_spd %>% 
+  group_by(document) %>%
+  mutate(max_gamma = max(gamma)) %>%
+  ggplot(aes(x = max_gamma)) +
+  geom_density()
 grouped_gammas_spd <- spd_result$gamma_values %>%
   group_by(document) %>%
   arrange(desc(gamma)) %>%
@@ -394,6 +424,16 @@ top_terms_linke %>%
 sorted_gammas_linke <- linke_result$gamma_values %>%
   group_by(document) %>%
   arrange(desc(gamma))
+sorted_gammas_linke %>% 
+  group_by(document, topic) %>%
+  mutate(max_gamma = max(gamma)) %>%
+  ggplot(aes(x = max_gamma, col = factor(topic))) +
+  geom_density()
+sorted_gammas_linke %>% 
+  group_by(document) %>%
+  mutate(max_gamma = max(gamma)) %>%
+  ggplot(aes(x = max_gamma)) +
+  geom_density()
 grouped_gammas_linke <- linke_result$gamma_values %>%
   group_by(document) %>%
   arrange(desc(gamma)) %>%
@@ -420,6 +460,25 @@ top_terms_gruene %>%
 sorted_gammas_gruene <- gruene_result$gamma_values %>%
   group_by(document) %>%
   arrange(desc(gamma))
+sorted_gammas_gruene %>% 
+  group_by(document, topic) %>%
+  mutate(max_gamma = max(gamma)) %>%
+  ggplot(aes(x = max_gamma, col = factor(topic))) +
+  geom_density()
+sorted_gammas_gruene %>% 
+  group_by(document) %>%
+  mutate(max_gamma = max(gamma)) %>%
+  ggplot(aes(x = max_gamma)) +
+  geom_density()
+#############
+sorted_gammas_gruene %>% 
+  group_by(document, topic) %>%
+  mutate(max_gamma = max(gamma)) %>%
+  mutate(gamma_round = round(max_gamma, digits = 1)) %>%
+  ggplot(aes(y = gamma_round, x = document, col = as.factor(topic))) +
+  geom_point()
+###############
+
 grouped_gammas_gruene <- gruene_result$gamma_values %>%
   group_by(document) %>%
   arrange(desc(gamma)) %>%
@@ -446,6 +505,16 @@ top_terms_fdp %>%
 sorted_gammas_fdp <- fdp_result$gamma_values %>%
   group_by(document) %>%
   arrange(desc(gamma))
+sorted_gammas_fdp %>% 
+  group_by(document, topic) %>%
+  mutate(max_gamma = max(gamma)) %>%
+  ggplot(aes(x = max_gamma, col = factor(topic))) +
+  geom_density()
+sorted_gammas_fdp %>% 
+  group_by(document) %>%
+  mutate(max_gamma = max(gamma)) %>%
+  ggplot(aes(x = max_gamma)) +
+  geom_density()
 grouped_gammas_fdp <- fdp_result$gamma_values %>%
   group_by(document) %>%
   arrange(desc(gamma)) %>%
