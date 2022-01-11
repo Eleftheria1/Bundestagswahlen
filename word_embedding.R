@@ -240,7 +240,7 @@ party_graph("CSU", 0.015, "grey")
 ######################################################################
 #                   Create kNN Graph
 ######################################################################
-create_knn_edges <- function(k = 5) {
+create_knn_edges <- function(pairwise_doc_similarity, nodes, k = 5) {
   knn_similarities <- data.frame(from = NULL, to = NULL, sim = NULL)
   for (id in seq(nrow(nodes))) {
     knn_similarities <- knn_similarities %>%
@@ -254,12 +254,7 @@ create_knn_edges <- function(k = 5) {
   colnames(knn_similarities) <- c("from", "to", "value")
   knn_similarities
 }
-knn_edges <- create_knn_edges(5)
 
-edges_knn <- data.frame(from = pairwise_doc_similarity[, 1],
-                    to = pairwise_doc_similarity[, 2],
-                    value = pairwise_doc_similarity[, 3],
-                    title = paste0(round(pairwise_doc_similarity[, 3], 5)))
 
 party_knn_graph <- function(party_char, filter_value = 0, color) {
   visNetwork(nodes %>%
@@ -277,6 +272,7 @@ party_knn_graph <- function(party_char, filter_value = 0, color) {
     visGroups(groupname = party_char, color = color) %>%
     visOptions(highlightNearest = list(enabled = TRUE, degree = 1))
 }
+knn_edges <- create_knn_edges(pairwise_doc_similarity, 3)
 
 party_knn_graph("CDU", color = "black")
 party_knn_graph("FDP", color = "orange")
@@ -285,3 +281,44 @@ party_knn_graph("Die Linke", color = "violet")
 party_knn_graph("Grüne", color = "darkgreen")
 party_knn_graph("CSU", color = "grey")
 party_knn_graph("SPD", color = "red")
+
+# static overall knn graph
+library(tidygraph)
+library(ggraph)
+
+graph_knn <- as_tbl_graph(
+  data.frame(
+    from = knn_edges$from,
+    to = knn_edges$to,
+    weight = knn_edges$value
+  )
+) %>%
+  activate(nodes) %>%
+  mutate(
+    degree = centrality_degree(),
+    label = doc_emb_candidates$name,
+    label_short = str_remove(str_extract(label, ".*,"),","),
+    party = doc_emb_candidates$party_fac
+  ) %>%
+  filter(degree > 0)
+graph_knn
+
+
+ggraph(graph_knn, layout = "graphopt") +
+  geom_edge_link0(aes(edge_width = weight), edge_colour = "grey66",
+                  alpha = 0.2) +
+  geom_node_point(aes(col = party,size = degree)) +
+  geom_node_text(aes(filter = degree >= 25, label = label_short),
+                 family = "serif", size = 4, col = "#862ff7") + 
+  scale_color_manual(values = c("blue", "black", "darkgrey",
+                                "violet", "orange",
+                                "green", "red"), name = "") +
+  scale_edge_width(range = c(0.01,1)) +
+  scale_size(range = c(1.5, 5)) +
+  guides(size = "none", edge_width = "none",
+         colour = guide_legend(override.aes = list(size = 6))) +
+  theme_graph() +
+  theme(legend.text = element_text(family = "serif", size = 10))
+
+# save(calc_pairwise_doc_sim, nodes, create_knn_edges,
+#      file = "doc2vec_graph/word_embedding_utils.RData")
