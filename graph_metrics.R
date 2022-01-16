@@ -58,7 +58,11 @@ graph_metrics <- function(graph) {
       mutate(diameter = graph_diameter(weights = weight, directed = FALSE) /
                graph_order(),
              mean_dist = graph_mean_dist(directed = FALSE),
-             louvian_communities = group_louvain(weights = weight))
+             louvian_communities = group_louvain(weights = weight),
+             loc_size1 = local_size(order = 1),
+             loc_size2 = local_size(order = 2),
+             loc_size3 = local_size(order = 3),
+             loc_size5 = local_size(order = 5))
     connectivity <- igraph::transitivity(filtered_graph)
     # relative diameter ~ longest path (larger -> more heterogeneity)
     # relative to number of nodes
@@ -71,14 +75,34 @@ graph_metrics <- function(graph) {
       pull(louvian_communities) %>%
       unique() %>%
       length() 
+    loc_size1 <- filtered_graph %>%
+      pull(loc_size1) %>%
+      max()
+    loc_size2 <- filtered_graph %>%
+      pull(loc_size2) %>%
+      max()
+    loc_size3 <- filtered_graph %>%
+      pull(loc_size3) %>%
+      max()
+    loc_size5 <- filtered_graph %>%
+      pull(loc_size5) %>%
+      max()
+    filtered_node_count <- filtered_graph %>% 
+      filter(degree > 0) %>% 
+      pull(name) %>%
+      length()
     c(connectivity = connectivity,
       diameter = diameter * 100,
       mean_dist = mean_dist, 
-      n_communities = n_communities)
+      n_communities = n_communities,
+      loc_size1 = loc_size1 / filtered_node_count,
+      loc_size2 = loc_size2 / filtered_node_count,
+      loc_size3 = loc_size3 / filtered_node_count,
+      loc_size5 = loc_size5 / filtered_node_count)
   })
-  plot_metrics <- metrics %>%
+  plot_metrics <- metrics[1:4, ] %>%
     as_tibble() %>%
-    bind_cols(metric = rownames(metrics)) %>%
+    bind_cols(metric = rownames(metrics[1:4, ])) %>%
     pivot_longer(-metric, names_to = "party", values_to = "value") %>%
     group_by(metric) %>%
     mutate(min_val = min(value)) %>%
@@ -98,16 +122,34 @@ graph_metrics <- function(graph) {
     theme_light() +
     theme(axis.ticks.x = element_blank(),
           axis.text.x = element_blank())
+  
+  hop_plot <- metrics[5:8, ] %>%
+    as_tibble() %>%
+    bind_cols(hop = c(1:3, 5)) %>%
+    pivot_longer(-hop, names_to = "party") %>%
+    ggplot(aes(x = hop, y = value, col = party)) +
+    geom_line() +
+    geom_point() +
+    scale_color_manual(values = c("blue", "black", "darkgrey",
+                                  "violet", "orange",
+                                  "green", "red"), name = "") +
+    scale_x_continuous(breaks = c(1:3,5)) +
+    labs(x = "Number of hops", y = "Percentage of coverage") +
+    theme_light()
+  
   list(metrics = metrics,
-       plot = plot_metrics)
+       plot = plot_metrics,
+       hop_plot = hop_plot)
 }
+
 # neighboring graph
 graph_metrics(neighboring_graph)$plot
 graph_metrics(neighboring_graph)$metrics
+graph_metrics(neighboring_graph)$hop_plot
 # knn graph
-graph_metrics(knn_graph)$plot
+graph_metrics(knn_graph)$hop_plot
 graph_metrics(knn_graph)$metrics
-
+graph_metrics(knn_graph)$plot
 
 
 
