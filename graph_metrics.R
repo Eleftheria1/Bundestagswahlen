@@ -4,6 +4,7 @@ load("doc2vec_graph/word_embedding_utils.RData")
 library(tidyverse)
 library(tidygraph)
 library(ggraph)
+library(patchwork)
 
 pairwise_doc_similarity <- calc_pairwise_doc_sim(document_embedding)
 
@@ -62,7 +63,9 @@ graph_metrics <- function(graph) {
              loc_size1 = local_size(order = 1),
              loc_size2 = local_size(order = 2),
              loc_size3 = local_size(order = 3),
-             loc_size5 = local_size(order = 5))
+             loc_size5 = local_size(order = 5),
+             loc_size8 = local_size(order = 8),
+             loc_size100 = local_size(order = 100))
     connectivity <- igraph::transitivity(filtered_graph)
     # relative diameter ~ longest path (larger -> more heterogeneity)
     # relative to number of nodes
@@ -87,18 +90,25 @@ graph_metrics <- function(graph) {
     loc_size5 <- filtered_graph %>%
       pull(loc_size5) %>%
       max()
-    filtered_node_count <- filtered_graph %>% 
-      filter(degree > 0) %>% 
-      pull(name) %>%
-      length()
+    loc_size8 <- filtered_graph %>%
+      pull(loc_size8) %>%
+      max()
+    loc_size100 <- filtered_graph %>%
+      pull(loc_size100) %>%
+      max()
+    graph_size <- filtered_graph %>%
+      pull(name) %>% length()
     c(connectivity = connectivity,
       diameter = diameter * 100,
       mean_dist = mean_dist, 
       n_communities = n_communities,
-      loc_size1 = loc_size1 / filtered_node_count,
-      loc_size2 = loc_size2 / filtered_node_count,
-      loc_size3 = loc_size3 / filtered_node_count,
-      loc_size5 = loc_size5 / filtered_node_count)
+      loc_size1 = loc_size1,
+      loc_size2 = loc_size2,
+      loc_size3 = loc_size3,
+      loc_size5 = loc_size5,
+      loc_size8 = loc_size8,
+      loc_size100 = loc_size100,
+      graph_size = graph_size)
   })
   plot_metrics <- metrics[1:4, ] %>%
     as_tibble() %>%
@@ -123,23 +133,46 @@ graph_metrics <- function(graph) {
     theme(axis.ticks.x = element_blank(),
           axis.text.x = element_blank())
   
-  hop_plot <- metrics[5:8, ] %>%
+  hop_plot <- metrics[5:9, ] %>%
     as_tibble() %>%
-    bind_cols(hop = c(1:3, 5)) %>%
+    bind_cols(hop = c(1:3, 5, 8)) %>%
     pivot_longer(-hop, names_to = "party") %>%
+    group_by(party) %>%
+    mutate(value = value / metrics[11, party]) %>%
+    ungroup() %>%
     ggplot(aes(x = hop, y = value, col = party)) +
     geom_line() +
     geom_point() +
     scale_color_manual(values = c("blue", "black", "darkgrey",
                                   "violet", "orange",
                                   "green", "red"), name = "") +
-    scale_x_continuous(breaks = c(1:3,5)) +
-    labs(x = "Number of hops", y = "Percentage of coverage") +
+    scale_x_continuous(breaks = c(1:3, 5, 8)) +
+    labs(x = "Number of hops",
+         y = "Percentage of coverage of all nodes") +
+    theme_light()
+  
+  hop_plot_communities <- metrics[5:9, ] %>%
+    as_tibble() %>%
+    bind_cols(hop = c(1:3, 5, 8)) %>%
+    pivot_longer(-hop, names_to = "party") %>%
+    group_by(party) %>%
+    mutate(value = value / metrics[10, party]) %>%
+    ungroup() %>%
+    ggplot(aes(x = hop, y = value, col = party)) +
+    geom_line() +
+    geom_point() +
+    scale_color_manual(values = c("blue", "black", "darkgrey",
+                                  "violet", "orange",
+                                  "green", "red"), name = "") +
+    scale_x_continuous(breaks = c(1:3, 5, 8)) +
+    labs(x = "Number of hops",
+         y = "Percentage of coverage in the largest community") +
     theme_light()
   
   list(metrics = metrics,
        plot = plot_metrics,
-       hop_plot = hop_plot)
+       hop_plot = hop_plot + hop_plot_communities +
+         plot_layout(guides = "collect"))
 }
 
 # neighboring graph
