@@ -129,6 +129,7 @@ get_cluster_object <- function(spectral_embedding, n_eigenvectors = 10,
     d = dist(spectral_embedding[, 1:n_eigenvectors])
   )
 }
+
 afd_cluster_obj <- get_cluster_object(
   afd_spec_emb$full_embedding,
   n_eigenvectors = 10,
@@ -150,6 +151,25 @@ fdp_cluster_obj <- get_cluster_object(
 )
 ggdendro::ggdendrogram(fdp_cluster_obj)
 
+cdu_cluster_obj <- get_cluster_object(
+  cdu_spec_emb$full_embedding,
+  n_eigenvectors = 10
+)
+
+csu_cluster_obj <- get_cluster_object(
+  csu_spec_emb$full_embedding,
+  n_eigenvectors = 10
+)
+
+linke_cluster_obj <- get_cluster_object(
+  linke_spec_emb$full_embedding,
+  n_eigenvectors = 10
+)
+
+spd_cluster_obj <- get_cluster_object(
+  spd_spec_emb$full_embedding,
+  n_eigenvectors = 10
+)
 
 umap_spectral_clust <- function(
   spec_embedding,
@@ -221,5 +241,47 @@ umap_spectral_clust(
   pure_embedding_space = TRUE
 )
 
+### color the partywise graph with spectral clustering
+library(visNetwork)
+edges <- data.frame(from = pairwise_doc_sim[, 1],
+                    to = pairwise_doc_sim[, 2],
+                    value = pairwise_doc_sim[, 3],
+                    title = paste0(round(pairwise_doc_sim[, 3], 5)))
+knn_edges <- create_knn_edges(
+  pairwise_doc_similarity = pairwise_doc_sim,
+  nodes = nodes,
+  k = 5
+)
 
+party_graph_specclust <- function(
+  party_char, 
+  cluster_obj, n_cluster,
+  nodes, edges,
+  filter_value = -Inf
+  ) {
+  cluster_assignments <- factor(cutree(cluster_obj, k = n_cluster))
+  visNetwork(nodes %>%
+               filter(group == party_char) %>%
+               mutate(group = cluster_assignments),
+             edges %>%
+               filter(value >= filter_value) %>%
+               filter(from %in% {nodes %>%
+                   filter(group == party_char) %>%
+                   pull(id)} &
+                     to %in% {nodes %>%
+                         filter(group == party_char) %>%
+                         pull(id)}),
+             width = "100%") %>%
+    visLegend(useGroups = FALSE) %>%
+    visOptions(highlightNearest = list(enabled = TRUE, degree = 1),
+               selectedBy = "group")
+}
 
+party_graph_specclust(
+  party_char = "FDP",
+  cluster_obj = fdp_cluster_obj,
+  n_cluster = 10,
+  nodes = nodes,
+  edges = knn_edges,
+  filter_value = 0
+)
