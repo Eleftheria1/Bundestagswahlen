@@ -120,60 +120,86 @@ fdp_spec_emb$elbow_plot
 
 # clustering the spectral embedding with hierarchical clustering
 
-get_cluster_object <- function(spectral_embedding, n_eigenvectors = 10,
-                               rownames = NULL) {
+cluster_spec <- function(
+  spectral_embedding, n_eigenvectors = 10,
+  n_cluster, branch_width = 1.2, cluster_prop = 0.05,
+  rownames = NULL) {
   if (!is.null(rownames)) {
     rownames(spectral_embedding) <- rownames
   }
-  flashClust::hclust(
+  cluster_obj <- flashClust::hclust(
     d = dist(spectral_embedding[, 1:n_eigenvectors])
   )
+  dendro <- as.dendrogram(cluster_obj) %>%
+    dendextend::set("branches_k_color", k = n_cluster) %>%
+    dendextend::set("labels", rep("", nrow(spectral_embedding))) %>%
+    dendextend::set("branches_lwd", branch_width) %>%
+    dendextend::as.ggdend() %>%
+    ggplot() + theme(panel.background = element_rect(fill = "grey"))
+  cluster_assignments <- factor(cutree(cluster_obj, k = n_cluster))
+  cluster_assignments <- fct_lump_prop(cluster_assignments,
+                                       prop = cluster_prop,
+                                       other_level = "Others")
+  list(dendro = dendro,
+       cluster_assignments = cluster_assignments)
 }
 
-afd_cluster_obj <- get_cluster_object(
-  afd_spec_emb$full_embedding,
-  n_eigenvectors = 10,
-  rownames = nodes$label[nodes$group == "AFD"]
-)
-ggdendro::ggdendrogram(afd_cluster_obj) +
-  theme(axis.text.x = element_text(size = 6))
-summary(factor(cutree(afd_cluster_obj, k = 4)))
+cluster_size <- nodes %>%
+  group_by(group) %>%
+  summarise(n_cluster = ceiling(n() * 0.05))
 
-gruene_cluster_obj <- get_cluster_object(
-  gruene_spec_emb$full_embedding,
+afd_spec_clust <- cluster_spec(
+  spectral_embedding = afd_spec_emb$full_embedding,
+  n_cluster = cluster_size$n_cluster[cluster_size$group == "AFD"],
   n_eigenvectors = 10
 )
-ggdendro::ggdendrogram(gruene_cluster_obj)
+afd_spec_clust$dendro
 
-fdp_cluster_obj <- get_cluster_object(
-  fdp_spec_emb$full_embedding,
+fdp_spec_clust <- cluster_spec(
+  spectral_embedding = fdp_spec_emb$full_embedding,
+  n_cluster = cluster_size$n_cluster[cluster_size$group == "FDP"],
   n_eigenvectors = 10
 )
-ggdendro::ggdendrogram(fdp_cluster_obj)
+fdp_spec_clust$dendro
 
-cdu_cluster_obj <- get_cluster_object(
-  cdu_spec_emb$full_embedding,
+gruene_spec_clust <- cluster_spec(
+  spectral_embedding = gruene_spec_emb$full_embedding,
+  n_cluster = cluster_size$n_cluster[cluster_size$group == "Grüne"],
   n_eigenvectors = 10
 )
+gruene_spec_clust$dendro
 
-csu_cluster_obj <- get_cluster_object(
-  csu_spec_emb$full_embedding,
+cdu_spec_clust <- cluster_spec(
+  spectral_embedding = cdu_spec_emb$full_embedding,
+  n_cluster = cluster_size$n_cluster[cluster_size$group == "CDU"],
   n_eigenvectors = 10
 )
+cdu_spec_clust$dendro
 
-linke_cluster_obj <- get_cluster_object(
-  linke_spec_emb$full_embedding,
+csu_spec_clust <- cluster_spec(
+  spectral_embedding = csu_spec_emb$full_embedding,
+  n_cluster = cluster_size$n_cluster[cluster_size$group == "CSU"],
   n_eigenvectors = 10
 )
+csu_spec_clust$dendro
 
-spd_cluster_obj <- get_cluster_object(
-  spd_spec_emb$full_embedding,
+spd_spec_clust <- cluster_spec(
+  spectral_embedding = spd_spec_emb$full_embedding,
+  n_cluster = cluster_size$n_cluster[cluster_size$group == "SPD"],
   n_eigenvectors = 10
 )
+spd_spec_clust$dendro
+
+linke_spec_clust <- cluster_spec(
+  spectral_embedding = linke_spec_emb$full_embedding,
+  n_cluster = cluster_size$n_cluster[cluster_size$group == "Die Linke"],
+  n_eigenvectors = 10
+)
+linke_spec_clust$dendro
 
 umap_spectral_clust <- function(
   spec_embedding,
-  n_cluster,
+  cluster_assignments,
   nodes,
   party = NULL,
   n_eigenvectors_clust = 3,
@@ -187,11 +213,6 @@ umap_spectral_clust <- function(
     n_epochs = 30
   )
   colnames(umap_doc_emb) <- c("x", "y", "z")
-  cluster_obj <- get_cluster_object(
-    spec_embedding,
-    n_eigenvectors = n_eigenvectors_clust
-  )
-  cluster_assignments <- factor(cutree(cluster_obj, k = n_cluster))
   if (!is.null(party)) nodes <- dplyr::filter(nodes, group == party)
   
   if (pure_embedding_space) {
@@ -205,7 +226,8 @@ umap_spectral_clust <- function(
     bind_cols(nodes) %>%
     bind_cols("cluster" = cluster_assignments) %>%
     plotly::plot_ly(x = ~x, y = ~y, z = ~z, color = ~cluster,
-                    colors = rainbow(n_cluster),
+                    colors = c(rainbow(length(levels(cluster_assignments)) - 1),
+                      "lightgrey"),
                     marker = list(symbol = "circle",
                                   size = 3),
                     text = ~label) %>%
@@ -217,29 +239,29 @@ umap_spectral_clust <- function(
         yaxis = list(title = ""),
         zaxis = list(title = "")
       ),
-      title = "Umap dimensionality reduction of spectral embedding"
+      title = "Clustering of spectral embedding"
     )
 }
 
 umap_spectral_clust(
   spec_embedding = fdp_spec_emb$full_embedding,
-  n_cluster = 5,
+  cluster_assignments = fdp_spec_clust$cluster_assignments,
   nodes = nodes,
   party = "FDP",
   n_eigenvectors_clust = 3,
   n_eigenvectors_umap = 10,
   pure_embedding_space = TRUE
 )
-
 umap_spectral_clust(
-  spec_embedding = gruene_spec_emb$full_embedding,
-  n_cluster = 5,
+  spec_embedding = afd_spec_emb$full_embedding,
+  cluster_assignments = afd_spec_clust$cluster_assignments,
   nodes = nodes,
-  party = "Grüne",
+  party = "AFD",
   n_eigenvectors_clust = 3,
   n_eigenvectors_umap = 10,
   pure_embedding_space = TRUE
 )
+
 
 ### color the partywise graph with spectral clustering
 library(visNetwork)
@@ -255,11 +277,10 @@ knn_edges <- create_knn_edges(
 
 party_graph_specclust <- function(
   party_char, 
-  cluster_obj, n_cluster,
+  cluster_assignments,
   nodes, edges,
   filter_value = -Inf
   ) {
-  cluster_assignments <- factor(cutree(cluster_obj, k = n_cluster))
   visNetwork(nodes %>%
                filter(group == party_char) %>%
                mutate(group = cluster_assignments),
@@ -277,11 +298,104 @@ party_graph_specclust <- function(
                selectedBy = "group")
 }
 
+# knn graphs
 party_graph_specclust(
   party_char = "FDP",
-  cluster_obj = fdp_cluster_obj,
-  n_cluster = 10,
+  cluster_assignments = fdp_spec_clust$cluster_assignments,
   nodes = nodes,
   edges = knn_edges,
   filter_value = 0
+)
+party_graph_specclust(
+  party_char = "AFD",
+  cluster_assignments = afd_spec_clust$cluster_assignments,
+  nodes = nodes,
+  edges = knn_edges,
+  filter_value = 0
+)
+party_graph_specclust(
+  party_char = "CDU",
+  cluster_assignments = cdu_spec_clust$cluster_assignments,
+  nodes = nodes,
+  edges = knn_edges,
+  filter_value = 0
+)
+party_graph_specclust(
+  party_char = "CSU",
+  cluster_assignments = csu_spec_clust$cluster_assignments,
+  nodes = nodes,
+  edges = knn_edges,
+  filter_value = 0
+)
+party_graph_specclust(
+  party_char = "SPD",
+  cluster_assignments = spd_spec_clust$cluster_assignments,
+  nodes = nodes,
+  edges = knn_edges,
+  filter_value = 0
+)
+party_graph_specclust(
+  party_char = "Die Linke",
+  cluster_assignments = linke_spec_clust$cluster_assignments,
+  nodes = nodes,
+  edges = knn_edges,
+  filter_value = 0
+)
+party_graph_specclust(
+  party_char = "Grüne",
+  cluster_assignments = gruene_spec_clust$cluster_assignments,
+  nodes = nodes,
+  edges = knn_edges,
+  filter_value = 0
+)
+
+# neighborhood graph
+party_graph_specclust(
+  party_char = "AFD",
+  cluster_assignments = afd_spec_clust$cluster_assignments,
+  nodes = nodes,
+  edges = edges,
+  filter_value = 0.017
+)
+party_graph_specclust(
+  party_char = "FDP",
+  cluster_assignments = fdp_spec_clust$cluster_assignments,
+  nodes = nodes,
+  edges = edges,
+  filter_value = 0.017
+)
+party_graph_specclust(
+  party_char = "CDU",
+  cluster_assignments = cdu_spec_clust$cluster_assignments,
+  nodes = nodes,
+  edges = edges,
+  filter_value = 0.017
+)
+party_graph_specclust(
+  party_char = "CSU",
+  cluster_assignments = csu_spec_clust$cluster_assignments,
+  nodes = nodes,
+  edges = edges,
+  filter_value = 0.001
+)
+party_graph_specclust(
+  party_char = "SPD",
+  cluster_assignments = spd_spec_clust$cluster_assignments,
+  nodes = nodes,
+  edges = edges,
+  filter_value = 0.017
+)
+party_graph_specclust(
+  party_char = "Die Linke",
+  cluster_assignments = linke_spec_clust$cluster_assignments,
+  nodes = nodes,
+  edges = edges,
+  filter_value = 0.017
+)
+party_graph_specclust(
+  party_char = "Grüne",
+  cluster_assignments = gruene_spec_clust$cluster_assignments,
+  nodes = nodes,
+  edges = edges,
+  filter_value = 0.02
 )

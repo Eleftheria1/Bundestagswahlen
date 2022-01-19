@@ -105,3 +105,97 @@ spd_clust <- doc_emb_clustering(
 spd_clust$dendro
 
 
+umap_cluster_plot <- function(
+  document_embedding,
+  nodes,
+  cluster_assignments, 
+  party = NULL,
+  clust_prop = 0.1
+) {
+  if (!is.null(party)) {
+    document_embedding <- document_embedding[nodes$group == party, ]
+    nodes <- nodes %>%
+      filter(group == party)
+  }
+  umap_doc_emb <- uwot::umap(
+    X = document_embedding,
+    n_components = 3,
+    approx_pow = TRUE,
+    n_epochs = 100
+  )
+  
+  # aggregate small clusters 
+  cluster_assignments <- fct_lump_prop(cluster_assignments, prop = clust_prop,
+                                       other_level = "Others")
+  
+  colnames(umap_doc_emb) <- c("x", "y", "z")
+  umap_doc_emb %>%
+    as_tibble() %>%
+    bind_cols(cluster = cluster_assignments,
+              label = nodes$label) %>%
+    plotly::plot_ly(x = ~x, y = ~y, z = ~z, color = ~cluster,
+                    colors = c(rainbow(length(levels(cluster_assignments)) - 1),
+                               "lightgrey"),
+                    marker = list(symbol = "circle",
+                                  size = 3),
+                    text = ~label) %>%
+    plotly::add_markers(opacity = 1) %>%
+    plotly::layout(
+      legend = list(itemsizing = "constant", font = list(size = 15)),
+      scene = list(
+        xaxis = list(title = ""),
+        yaxis = list(title = ""),
+        zaxis = list(title = "")
+      ),
+      title = "Clustering of politician embedding plot via UMAP"
+    )
+}
+
+umap_cluster_plot(
+  document_embedding = document_embedding,
+  nodes = nodes,
+  cluster_assignments = afd_clust$cluster_assignments,
+  party = "AFD"
+)
+
+umap_cluster_plot(
+  document_embedding = document_embedding,
+  nodes = nodes,
+  cluster_assignments = cdu_clust$cluster_assignments,
+  party = "CDU"
+)
+
+umap_cluster_plot(
+  document_embedding = document_embedding,
+  nodes = nodes,
+  cluster_assignments = csu_clust$cluster_assignments,
+  party = "CSU"
+)
+
+umap_cluster_plot(
+  document_embedding = document_embedding,
+  nodes = nodes,
+  cluster_assignments = linke_clust$cluster_assignments,
+  party = "Die Linke"
+)
+
+umap_cluster_plot(
+  document_embedding = document_embedding,
+  nodes = nodes,
+  cluster_assignments = fdp_clust$cluster_assignments,
+  party = "FDP"
+)
+
+umap_cluster_plot(
+  document_embedding = document_embedding,
+  nodes = nodes,
+  cluster_assignments = spd_clust$cluster_assignments,
+  party = "SPD"
+)
+
+umap_cluster_plot(
+  document_embedding = document_embedding,
+  nodes = nodes,
+  cluster_assignments = gruene_clust$cluster_assignments,
+  party = "Grüne"
+)
