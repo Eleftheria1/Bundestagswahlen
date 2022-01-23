@@ -31,7 +31,7 @@ neighboring_graph
 # knn graph
 knn_edges <- create_knn_edges(pairwise_doc_similarity,
                               nodes = nodes,
-                              k = 7)
+                              k = 5)
 
 knn_graph <- as_tbl_graph(
   data.frame(
@@ -184,8 +184,10 @@ graph_metrics(knn_graph)$hop_plot
 graph_metrics(knn_graph)$metrics
 graph_metrics(knn_graph)$plot
 
-
-
-
-
+# metrics_neighboring_graph_0.001 <- graph_metrics(neighboring_graph)
+# metrics_5nn <- graph_metrics(knn_graph)
+# 
+# save(metrics_neighboring_graph_0.001, metrics_5nn,
+#      file = "doc2vec_graph/graph_metrics.RData")
+# 
 

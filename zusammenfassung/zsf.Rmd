@@ -1,0 +1,224 @@
+---
+title: "Previously on ..."
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    code_folding: hide
+    theme:
+      bootswatch: cerulean
+---
+
+```{r setup, include=FALSE}
+if (requireNamespace("thematic")) 
+  thematic::thematic_rmd(font = "auto")
+thematic::thematic_off()
+```
+
+## Document embedding
+
+Trained a doc2vec embedding based on *skip-gram* on the politician level i.e. all tweets of one politician are treated as a document.
+
+$\Rightarrow$ One obtains a 300 dimensional embedding vector for each politician.
+
+```{r, warning=FALSE, message=FALSE}
+# load necessary functions and embeddings
+load(paste0(here::here(), "/doc2vec_graph/politician_level_dco2vec.RData"))
+load(paste0(here::here(), "/doc2vec_graph/word_embedding_utils.RData"))
+load(paste0(here::here(), "/doc2vec_graph/doc_clust_utils.RData"))
+load(paste0(here::here(), "/doc2vec_graph/graph_metrics.RData"))
+library(tidyverse)
+library(visNetwork)
+library(tidygraph)
+library(ggraph)
+library(patchwork)
+# precompute some important quantities
+pairwise_doc_sim <- calc_pairwise_doc_sim(document_embedding)
+edges <- data.frame(from = pairwise_doc_sim[, 1],
+                    to = pairwise_doc_sim[, 2],
+                    value = pairwise_doc_sim[, 3],
+                    title = paste0(round(pairwise_doc_sim[, 3], 5)))
+knn_edges <- create_knn_edges(
+  pairwise_doc_similarity = pairwise_doc_sim,
+  nodes = nodes,
+  k = 5
+)
+
+
+# UWOT
+umap_doc_emb <- uwot::umap(
+  X = document_embedding,
+  n_components = 3,
+  approx_pow = TRUE,
+  n_epochs = 20
+)
+colnames(umap_doc_emb) <- c("x", "y", "z")
+umap_doc_emb %>%
+  as_tibble() %>%
+  bind_cols(nodes) %>%
+  plotly::plot_ly(x = ~x, y = ~y, z = ~z, color = ~group,
+                  colors = c("blue", "black", "darkgrey",
+                             "violet", "orange",
+                             "green", "red"),
+                  marker = list(symbol = "circle",
+                                size = 3),
+                  text = ~label) %>%
+  plotly::add_markers(opacity = 1) %>%
+  plotly::layout(
+    legend = list(itemsizing = "constant", font = list(size = 15)),
+    scene = list(
+      xaxis = list(title = ""),
+      yaxis = list(title = ""),
+      zaxis = list(title = "")
+    ),
+    title = "Umap dimensionality reduction of politician embedding"
+  )
+```
+
+## Clustering on the document embedding by party
+
+Apply hierarchical clustering $\rightarrow$ analyze the dendrograms.
+
+
+
+```{r, fig.showtext=TRUE}
+cluster_size <- nodes %>%
+  group_by(group) %>%
+  summarise(n_cluster = ceiling(n() * 0.3))
+afd_clust <- doc_emb_clustering(
+  document_embedding = document_embedding,
+  nodes = nodes,
+  n_cluster = cluster_size$n_cluster[cluster_size$group == "AFD"],
+  party = "AFD",
+  branch_width = 2
+)
+
+fdp_clust <- doc_emb_clustering(
+  document_embedding = document_embedding,
+  nodes = nodes,
+  n_cluster = cluster_size$n_cluster[cluster_size$group == "FDP"],
+  party = "FDP",
+  branch_width = 2
+)
+
+cdu_clust <- doc_emb_clustering(
+  document_embedding = document_embedding,
+  nodes = nodes,
+  n_cluster = cluster_size$n_cluster[cluster_size$group == "CDU"],
+  party = "CDU",
+  branch_width = 2
+)
+
+csu_clust <- doc_emb_clustering(
+  document_embedding = document_embedding,
+  nodes = nodes,
+  n_cluster = cluster_size$n_cluster[cluster_size$group == "CSU"],
+  party = "CSU",
+  branch_width = 2
+)
+
+linke_clust <- doc_emb_clustering(
+  document_embedding = document_embedding,
+  nodes = nodes,
+  n_cluster = cluster_size$n_cluster[cluster_size$group == "Die Linke"],
+  party = "Die Linke",
+  branch_width = 2
+)
+
+gruene_clust <- doc_emb_clustering(
+  document_embedding = document_embedding,
+  nodes = nodes,
+  n_cluster = cluster_size$n_cluster[cluster_size$group == "Grüne"],
+  party = "Grüne",
+  branch_width = 2
+)
+
+spd_clust <- doc_emb_clustering(
+  document_embedding = document_embedding,
+  nodes = nodes,
+  n_cluster = cluster_size$n_cluster[cluster_size$group == "SPD"],
+  party = "SPD",
+  branch_width = 2
+)
+```
+
+### Die Grünen
+
+```{r, fig.showtext=TRUE, warning=FALSE, message=FALSE, error=FALSE}
+gruene_clust$dendro
+
+umap_cluster_plot(
+  document_embedding = document_embedding,
+  nodes = nodes,
+  cluster_assignments = gruene_clust$cluster_assignments,
+  party = "Grüne"
+)
+```
+
+### SPD
+
+```{r, fig.showtext=TRUE, warning=FALSE, message=FALSE, error=FALSE}
+spd_clust$dendro
+
+umap_cluster_plot(
+  document_embedding = document_embedding,
+  nodes = nodes,
+  cluster_assignments = spd_clust$cluster_assignments,
+  party = "SPD"
+)
+```
+
+
+## Analyse similarities
+
+Calculate pairwise similarities within the document embedding. The resulting similarities can be displayed as a undirected similarity graph with
+
+- Nodes: Politicians
+- Edges: Similarities weighted by the computed pairwise similarity
+
+This very dense graph can be represented either in a 
+
+- Neighborhood graph: cutoff all edges below a certain similarity threshold
+- KNN graph: for each politician keep only all its k highest "outgoing" edges w.r.t. similarity
+
+The graph for each party can be displayed vizually along the cluster assignments that were computed on the document embedding.
+
+#### AFD
+
+Here the 5-NN Graph is used.
+
+```{r}
+party_graph_docclust(
+  party_char = "AFD",
+  cluster_assignments = afd_clust$cluster_assignments,
+  nodes = nodes,
+  edges = knn_edges
+)
+```
+
+#### SPD
+
+Here the 5-NN Graph is used.
+
+```{r}
+party_graph_docclust(
+  party_char = "SPD",
+  cluster_assignments = spd_clust$cluster_assignments,
+  nodes = nodes,
+  edges = knn_edges
+)
+```
+
+### Graph metrics by party
+
+Having these similarity graphs one can use common graph metrics to assess heterogeneity within parties and compare these metrics.
+
+Here the neighborhood graph is used.
+
+```{r}
+metrics_neighboring_graph_0.001$plot
+metrics_neighboring_graph_0.001$hop_plot
+```
+
+
+

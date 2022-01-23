@@ -104,7 +104,7 @@ spd_clust <- doc_emb_clustering(
 )
 spd_clust$dendro
 
-
+### UMAP document level clustering
 umap_cluster_plot <- function(
   document_embedding,
   nodes,
@@ -199,3 +199,138 @@ umap_cluster_plot(
   cluster_assignments = gruene_clust$cluster_assignments,
   party = "Grüne"
 )
+
+### graph viz document level clustering
+library(visNetwork)
+pairwise_doc_sim <- calc_pairwise_doc_sim(document_embedding)
+edges <- data.frame(from = pairwise_doc_sim[, 1],
+                    to = pairwise_doc_sim[, 2],
+                    value = pairwise_doc_sim[, 3],
+                    title = paste0(round(pairwise_doc_sim[, 3], 5)))
+knn_edges <- create_knn_edges(
+  pairwise_doc_similarity = pairwise_doc_sim,
+  nodes = nodes,
+  k = 5
+)
+party_graph_docclust <- function(
+  party_char, 
+  cluster_assignments,
+  nodes, edges,
+  clust_prop = 0.1,
+  filter_value = -Inf
+) {
+  # aggregate small clusters 
+  cluster_assignments <- fct_lump_prop(cluster_assignments, prop = clust_prop,
+                                       other_level = "Others")
+  visNetwork(nodes %>%
+               filter(group == party_char) %>%
+               mutate(group = cluster_assignments),
+             edges %>%
+               filter(value >= filter_value) %>%
+               filter(from %in% {nodes %>%
+                   filter(group == party_char) %>%
+                   pull(id)} &
+                     to %in% {nodes %>%
+                         filter(group == party_char) %>%
+                         pull(id)}),
+             width = "100%") %>%
+    visLegend(useGroups = FALSE) %>%
+    visOptions(highlightNearest = list(enabled = TRUE, degree = 1),
+               selectedBy = "group")
+}
+# knn graphs
+party_graph_docclust(
+  party_char = "AFD",
+  cluster_assignments = afd_clust$cluster_assignments,
+  nodes = nodes,
+  edges = knn_edges
+)
+party_graph_docclust(
+  party_char = "CDU",
+  cluster_assignments = cdu_clust$cluster_assignments,
+  nodes = nodes,
+  edges = knn_edges
+)
+party_graph_docclust(
+  party_char = "FDP",
+  cluster_assignments = fdp_clust$cluster_assignments,
+  nodes = nodes,
+  edges = knn_edges
+)
+party_graph_docclust(
+  party_char = "SPD",
+  cluster_assignments = spd_clust$cluster_assignments,
+  nodes = nodes,
+  edges = knn_edges
+)
+party_graph_docclust(
+  party_char = "CSU",
+  cluster_assignments = csu_clust$cluster_assignments,
+  nodes = nodes,
+  edges = knn_edges
+)
+party_graph_docclust(
+  party_char = "Die Linke",
+  cluster_assignments = linke_clust$cluster_assignments,
+  nodes = nodes,
+  edges = knn_edges
+)
+party_graph_docclust(
+  party_char = "Grüne",
+  cluster_assignments = gruene_clust$cluster_assignments,
+  nodes = nodes,
+  edges = knn_edges
+)
+
+# neighborhood graphs
+party_graph_docclust(
+  party_char = "AFD",
+  cluster_assignments = afd_clust$cluster_assignments,
+  nodes = nodes,
+  edges = edges,
+  filter_value = 0.01
+)
+party_graph_docclust(
+  party_char = "CDU",
+  cluster_assignments = cdu_clust$cluster_assignments,
+  nodes = nodes,
+  edges = edges,
+  filter_value = 0.017
+)
+party_graph_docclust(
+  party_char = "FDP",
+  cluster_assignments = fdp_clust$cluster_assignments,
+  nodes = nodes,
+  edges = edges,
+  filter_value = 0.017
+)
+party_graph_docclust(
+  party_char = "SPD",
+  cluster_assignments = spd_clust$cluster_assignments,
+  nodes = nodes,
+  edges = edges,
+  filter_value = 0.017
+)
+party_graph_docclust(
+  party_char = "CSU",
+  cluster_assignments = csu_clust$cluster_assignments,
+  nodes = nodes,
+  edges = edges,
+  filter_value = 0.017
+)
+party_graph_docclust(
+  party_char = "Die Linke",
+  cluster_assignments = linke_clust$cluster_assignments,
+  nodes = nodes,
+  edges = edges,
+  filter_value = 0.017
+)
+party_graph_docclust(
+  party_char = "Grüne",
+  cluster_assignments = gruene_clust$cluster_assignments,
+  nodes = nodes,
+  edges = edges,
+  filter_value = 0.017
+)
+# save(doc_emb_clustering, party_graph_docclust, umap_cluster_plot,
+#      file = "doc2vec_graph/doc_clust_utils.RData")
