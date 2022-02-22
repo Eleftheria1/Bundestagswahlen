@@ -4,6 +4,10 @@ load("doc2vec_graph/word_embedding_utils.RData")
 load("doc2vec_graph/doc_clust_utils.RData")
 library(tidyverse)
 library(tidytext)
+library(wordcloud)
+library(wordcloud2)
+library(RColorBrewer)
+library(tm)
 btw17_corpus <- readr::read_csv(
   "btw17_corpus.csv",
   col_types = c("id" = "character",
@@ -23,7 +27,7 @@ cluster_tfidf <- function(
   document_embedding,
   party,
   n_cluster,
-  clust_prop = 0.1,
+  clust_prop = 0.02,
   branch_width = 2
 ) {
   doc_clust <- doc_emb_clustering(
@@ -72,7 +76,7 @@ clust_tfidf_afd <- cluster_tfidf(
 
 clust_tfidf_afd %>%
   group_by(cluster) %>%
-  slice_head(n = 5) %>% 
+  slice_head(n = 20) %>% 
   View()
 
 clust_tfidf_cdu <- cluster_tfidf(
@@ -126,3 +130,197 @@ clust_tfidf_fdp %>%
   group_by(cluster) %>%
   slice_head(n = 15) %>% 
   View()
+
+clust_tfidf_spd <- cluster_tfidf(
+  corpus = btw17_corpus,
+  nodes = nodes,
+  document_embedding = document_embedding,
+  party = "SPD",
+  n_cluster = cluster_size$n_cluster[cluster_size$group == "SPD"]
+)
+
+clust_tfidf_spd %>%
+  group_by(cluster) %>%
+  slice_head(n = 15) %>% 
+  View()
+
+clust_tfidf_csu <- cluster_tfidf(
+  corpus = btw17_corpus,
+  nodes = nodes,
+  document_embedding = document_embedding,
+  party = "CSU",
+  n_cluster = cluster_size$n_cluster[cluster_size$group == "CSU"],
+  clust_prop = 0.03
+)
+
+clust_tfidf_csu %>%
+  group_by(cluster) %>%
+  slice_head(n = 15) %>% 
+  View()
+###########################################################################
+##########################################################################
+                              # wordclouds
+##########################################################################
+set.seed(222)
+#######################################
+## AFD 
+######################################
+#cluster 2
+# barcelona 17 august 2017 terroranschlag 
+wordcloud2(data= as.data.frame(clust_tfidf_afd %>%
+                                 filter(cluster == 2) %>%
+                                 slice_head(n = 30) %>%
+                                 select(word, tf_idf)),
+           size=1, color='random-dark', shape = "circle",
+           minRotation = -pi/2, maxRotation = -pi/2)
+# cluster 1
+wordcloud2(data= as.data.frame(clust_tfidf_afd %>%
+                                 filter(cluster == 1) %>%
+                                 slice_head(n = 30) %>%
+                                 select(word, tf_idf)),
+           size=1, color='random-dark', shape = "circle",
+           minRotation = -pi/2, maxRotation = -pi/2)
+# cluster 6
+wordcloud2(data= as.data.frame(clust_tfidf_afd %>%
+                                 filter(cluster == 6) %>%
+                                 slice_head(n = 30) %>%
+                                 select(word, tf_idf)),
+           size=1, color='random-dark', shape = "circle",
+           minRotation = -pi/2, maxRotation = -pi/2)
+#######################################
+## CDU
+######################################
+#cluster 2
+wordcloud2(data= as.data.frame(clust_tfidf_cdu %>%
+                                 filter(cluster == 2) %>%
+                                 slice_head(n = 30) %>%
+                                 select(word, tf_idf)),
+           size=1, color='random-dark', shape = "circle",
+           minRotation = -pi/2, maxRotation = -pi/2)
+# cluster 8
+wordcloud2(data= as.data.frame(clust_tfidf_cdu %>%
+                                 filter(cluster == 8) %>%
+                                 slice_head(n = 30) %>%
+                                 select(word, tf_idf)),
+           size=1, color='random-dark', shape = "circle",
+           minRotation = -pi/2, maxRotation = -pi/2)
+# cluster 6
+wordcloud2(data= as.data.frame(clust_tfidf_cdu %>%
+                                 filter(cluster == 6) %>%
+                                 slice_head(n = 30) %>%
+                                 select(word, tf_idf)),
+           size=1, color='random-dark', shape = "circle",
+           minRotation = -pi/2, maxRotation = -pi/2)
+#######################################
+## SPD
+######################################
+#cluster 1
+wordcloud2(data= as.data.frame(clust_tfidf_spd %>%
+                                 filter(cluster == 1) %>%
+                                 slice_head(n = 30) %>%
+                                 select(word, tf_idf)),
+           size=1, color='random-dark', shape = "circle",
+           minRotation = -pi/2, maxRotation = -pi/2)
+# cluster 3
+wordcloud2(data= as.data.frame(clust_tfidf_spd %>%
+                                 filter(cluster == 3) %>%
+                                 slice_head(n = 30) %>%
+                                 select(word, tf_idf)),
+           size=1, color='random-dark', shape = "circle",
+           minRotation = -pi/2, maxRotation = -pi/2)
+# cluster 4
+wordcloud2(data= as.data.frame(clust_tfidf_spd %>%
+                                 filter(cluster == 4) %>%
+                                 slice_head(n = 30) %>%
+                                 select(word, tf_idf)),
+           size=1, color='random-dark', shape = "circle",
+           minRotation = -pi/2, maxRotation = -pi/2)
+#######################################
+## Linke
+######################################
+#cluster 2
+wordcloud2(data= as.data.frame(clust_tfidf_linke %>%
+                                 filter(cluster == 2) %>%
+                                 slice_head(n = 30) %>%
+                                 select(word, tf_idf)),
+           size=1, color='random-dark', shape = "circle",
+           minRotation = -pi/2, maxRotation = -pi/2)
+# cluster 3
+wordcloud2(data= as.data.frame(clust_tfidf_linke %>%
+                                 filter(cluster == 3) %>%
+                                 slice_head(n = 30) %>%
+                                 select(word, tf_idf)),
+           size=1, color='random-dark', shape = "circle",
+           minRotation = -pi/2, maxRotation = -pi/2)
+# cluster 6
+wordcloud2(data= as.data.frame(clust_tfidf_linke %>%
+                                 filter(cluster == 6) %>%
+                                 slice_head(n = 30) %>%
+                                 select(word, tf_idf)),
+           size=1, color='random-dark', shape = "circle",
+           minRotation = -pi/2, maxRotation = -pi/2)
+# cluster 4
+wordcloud2(data= as.data.frame(clust_tfidf_linke %>%
+                                 filter(cluster == 4) %>%
+                                 slice_head(n = 30) %>%
+                                 select(word, tf_idf)),
+           size=1, color='random-dark', shape = "circle",
+           minRotation = -pi/2, maxRotation = -pi/2)
+#######################################
+## Grüne
+######################################
+#cluster 1
+wordcloud2(data= as.data.frame(clust_tfidf_grüne %>%
+                                 filter(cluster == 1) %>%
+                                 slice_head(n = 30) %>%
+                                 select(word, tf_idf)),
+           size=1, color='random-dark', shape = "circle",
+           minRotation = -pi/2, maxRotation = -pi/2)
+# cluster 3
+wordcloud2(data= as.data.frame(clust_tfidf_grüne %>%
+                                 filter(cluster == 3) %>%
+                                 slice_head(n = 30) %>%
+                                 select(word, tf_idf)),
+           size=1, color='random-dark', shape = "circle",
+           minRotation = -pi/2, maxRotation = -pi/2)
+# cluster 2
+wordcloud2(data= as.data.frame(clust_tfidf_grüne %>%
+                                 filter(cluster == 2) %>%
+                                 slice_head(n = 30) %>%
+                                 select(word, tf_idf)),
+           size=1, color='random-dark', shape = "circle",
+           minRotation = -pi/2, maxRotation = -pi/2)
+# cluster 8
+wordcloud2(data= as.data.frame(clust_tfidf_grüne %>%
+                                 filter(cluster == 8) %>%
+                                 slice_head(n = 30) %>%
+                                 select(word, tf_idf)),
+           size=1, color='random-dark', shape = "circle",
+           minRotation = -pi/2, maxRotation = -pi/2)
+#######################################
+## FDP
+######################################
+#cluster 1
+wordcloud2(data= as.data.frame(clust_tfidf_fdp %>%
+                                 filter(cluster == 1) %>%
+                                 slice_head(n = 30) %>%
+                                 select(word, tf_idf)),
+           size=1, color='random-dark', shape = "circle",
+           minRotation = -pi/2, maxRotation = -pi/2)
+# cluster 3
+wordcloud2(data= as.data.frame(clust_tfidf_fdp %>%
+                                 filter(cluster == 3) %>%
+                                 slice_head(n = 30) %>%
+                                 select(word, tf_idf)),
+           size=1, color='random-dark', shape = "circle",
+           minRotation = -pi/2, maxRotation = -pi/2)
+#######################################
+## CSU
+######################################
+#cluster 1
+wordcloud2(data= as.data.frame(clust_tfidf_csu %>%
+                                 filter(cluster == 1) %>%
+                                 slice_head(n = 30) %>%
+                                 select(word, tf_idf)),
+           size=1, color='random-dark', shape = "circle",
+           minRotation = -pi/2, maxRotation = -pi/2)
